@@ -1,1 +1,380 @@
-none
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTA V 3D - Custom OBJ World</title>
+    <!-- Core Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OBJ and MTL Loaders -->
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/MTLLoader.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box;
+        }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .wanted-level { color: #ffca28; font-size: 36px; text-shadow: 2px 2px 4px #000; font-weight: bold; letter-spacing: 2px; }
+        .stats-box { background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #2ecc71; min-width: 180px; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
+        .health-bar { width: 100%; height: 8px; background: #444; margin-top: 5px; border-radius: 4px; overflow: hidden; }
+        .health-fill { width: 100%; height: 100%; background: #2ecc71; transition: width 0.3s; }
+        
+        #mini-map {
+            position: absolute; bottom: 20px; left: 20px; width: 180px; height: 180px;
+            background: rgba(0,0,0,0.6); border: 4px solid #333; border-radius: 10px;
+            overflow: hidden; pointer-events: auto;
+        }
+        #map-canvas { width: 100%; height: 100%; }
+
+        .hud-bottom-right { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 15px; pointer-events: auto; }
+        .char-wheel {
+            width: 55px; height: 55px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;
+            cursor: pointer; transition: all 0.3s; background: #222; font-size: 20px;
+        }
+        .char-wheel.active { transform: scale(1.2); border-color: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        
+        #instructions {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; text-align: center; background: rgba(0,0,0,0.95); padding: 40px; border-radius: 15px;
+            z-index: 100; border: 1px solid #444; pointer-events: auto;
+        }
+        .speedometer { position: absolute; bottom: 20px; left: 220px; color: white; font-weight: bold; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 20px; }
+        
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #2ecc71; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <h1>LOADING...</h1>
+        <div id="load-status">Downloading World Map</div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stats-box">
+                <div class="stat-row"><span id="char-name">Michael</span> <span id="cash" style="color:#2ecc71">$4,500,201</span></div>
+                <div class="health-bar"><div id="hp-fill" class="health-fill"></div></div>
+            </div>
+            <div class="wanted-level" id="stars">★★★★★</div>
+        </div>
+
+        <div id="mini-map"><canvas id="map-canvas"></canvas></div>
+        <div id="speedo" class="speedometer" style="display:none">0 MPH</div>
+
+        <div class="hud-bottom-right">
+            <div class="char-wheel" style="background: #3498db;" id="c1" onclick="switchChar(0)">M</div>
+            <div class="char-wheel" style="background: #2ecc71;" id="c2" onclick="switchChar(1)">F</div>
+            <div class="char-wheel" style="background: #e67e22;" id="c3" onclick="switchChar(2)">T</div>
+        </div>
+    </div>
+
+    <div id="instructions" style="display:none">
+        <h1 style="color: #2ecc71; margin-top:0;">FULL MAP LOADED</h1>
+        <p><b>WASD</b> Move | <b>Mouse</b> Look | <b>Click</b> Shoot</p>
+        <p><b>F</b> Enter/Exit Vehicle | <b>Space</b> Handbrake</p>
+        <p><b>1, 2, 3</b> Switch Character</p>
+        <button style="padding: 10px 20px; background: #2ecc71; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;" onclick="startGame()">START GAME</button>
+    </div>
+
+    <script>
+        /**
+         * --- CUSTOM ASSET CONFIGURATION ---
+         * 1. Upload your .obj file to a service like GitHub.
+         * 2. Get the RAW URL of the file.
+         * 3. Replace the URLs below.
+         */
+        const MODELS = {
+            // Your custom character model
+            player: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/obj/male02/male02.obj',
+            
+            // Your custom vehicle model
+            car: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/obj/walt/WaltHead.obj',
+            
+            // YOUR CUSTOM ENTIRE WORLD/MAP OBJ FILE
+            map: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/obj/male02/male02.obj' 
+        };
+
+        // --- GLOBAL VARIABLES ---
+        let scene, camera, renderer, clock, objLoader;
+        let game = {
+            active: false,
+            currentChar: 0,
+            inCar: null,
+            vehicles: [],
+            models: {} 
+        };
+
+        const CHARS = [
+            { name: "Michael", pos: {x: 0, z: 0}, cash: "$4,500,201" },
+            { name: "Franklin", pos: {x: 100, z: 100}, cash: "$250,400" },
+            { name: "Trevor", pos: {x: -100, z: -100}, cash: "$12,050" }
+        ];
+
+        async function init() {
+            if (typeof THREE === 'undefined' || !THREE.OBJLoader) {
+                setTimeout(init, 100);
+                return;
+            }
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 200, 5000);
+
+            objLoader = new THREE.OBJLoader();
+            clock = new THREE.Clock();
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+            sun.position.set(500, 1000, 500);
+            sun.castShadow = true;
+            scene.add(sun);
+
+            try {
+                document.getElementById('load-status').innerText = "Loading Character...";
+                game.models.player = await loadOBJ(MODELS.player);
+                
+                document.getElementById('load-status').innerText = "Loading Cars...";
+                game.models.car = await loadOBJ(MODELS.car);
+
+                document.getElementById('load-status').innerText = "Loading Custom World OBJ...";
+                game.models.world = await loadOBJ(MODELS.map);
+                
+                finishLoading();
+            } catch (err) {
+                console.error("Failed to load custom .obj files:", err);
+                finishLoading();
+            }
+
+            createWorld();
+            setupPlayer();
+            spawnVehicles();
+            animate();
+        }
+
+        function loadOBJ(url) {
+            return new Promise((resolve, reject) => {
+                objLoader.load(url, (obj) => resolve(obj), undefined, reject);
+            });
+        }
+
+        function finishLoading() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('instructions').style.display = 'block';
+        }
+
+        function startGame() {
+            document.body.requestPointerLock();
+            game.active = true;
+            document.getElementById('instructions').style.display = 'none';
+        }
+
+        function createWorld() {
+            // Invisible floor for physics (so character doesn't fall through)
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(10000, 10000),
+                new THREE.MeshStandardMaterial({ color: 0x111111, transparent: true, opacity: 0.5 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Display the Full Custom World Map
+            if (game.models.world) {
+                const worldMap = game.models.world;
+                
+                /**
+                 * --- ADJUST WORLD SCALE ---
+                 * If your map is too small or too big, change '50' to another number.
+                 */
+                worldMap.scale.set(50, 50, 50); 
+                worldMap.position.set(0, 0, 0);
+                
+                worldMap.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // Use a default color if no material file exists
+                        if (!child.material.map) child.material.color.set(0x777777);
+                    }
+                });
+                scene.add(worldMap);
+            }
+        }
+
+        let playerObj;
+        function setupPlayer() {
+            playerObj = new THREE.Group();
+            if (game.models.player) {
+                const model = game.models.player.clone();
+                model.scale.set(0.015, 0.015, 0.015);
+                playerObj.add(model);
+            } else {
+                const fallback = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.5), new THREE.MeshStandardMaterial({color: 0x00ff00}));
+                fallback.position.y = 1;
+                playerObj.add(fallback);
+            }
+            scene.add(playerObj);
+        }
+
+        function spawnVehicles() {
+            for(let i=0; i<30; i++) {
+                createVehicle((Math.random()-0.5)*1500, (Math.random()-0.5)*1500);
+            }
+        }
+
+        function createVehicle(x, z) {
+            const vGroup = new THREE.Group();
+            if (game.models.car) {
+                const model = game.models.car.clone();
+                model.scale.set(0.3, 0.3, 0.3);
+                vGroup.add(model);
+            } else {
+                const fallback = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 8), new THREE.MeshStandardMaterial({color: Math.random()*0xffffff}));
+                fallback.position.y = 1;
+                vGroup.add(fallback);
+            }
+            vGroup.position.set(x, 0, z);
+            vGroup.userData = { velocity: 0 };
+            scene.add(vGroup);
+            game.vehicles.push(vGroup);
+        }
+
+        const keys = {};
+        document.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if(e.code === 'KeyF') toggleVehicle();
+            if(e.code === 'Digit1') switchChar(0);
+            if(e.code === 'Digit2') switchChar(1);
+            if(e.code === 'Digit3') switchChar(2);
+        });
+        document.addEventListener('keyup', e => keys[e.code] = false);
+
+        function toggleVehicle() {
+            if (game.inCar) {
+                playerObj.position.copy(game.inCar.position);
+                playerObj.position.x += 6;
+                game.inCar = null;
+                playerObj.visible = true;
+                document.getElementById('speedo').style.display = 'none';
+            } else {
+                let closest = null; let minDist = 15;
+                game.vehicles.forEach(v => {
+                    let d = playerObj.position.distanceTo(v.position);
+                    if(d < minDist) { minDist = d; closest = v; }
+                });
+                if(closest) {
+                    game.inCar = closest;
+                    playerObj.visible = false;
+                    document.getElementById('speedo').style.display = 'block';
+                }
+            }
+        }
+
+        window.switchChar = (index) => {
+            game.currentChar = index;
+            const target = CHARS[index];
+            document.getElementById('char-name').innerText = target.name;
+            if (playerObj) playerObj.position.set(target.pos.x, 0, target.pos.z);
+            document.querySelectorAll('.char-wheel').forEach((el, i) => el.classList.toggle('active', i === index));
+        };
+
+        let cameraAngleX = 0, cameraAngleY = 0;
+        document.addEventListener('mousemove', e => {
+            if(document.pointerLockElement) {
+                cameraAngleX -= e.movementX * 0.003;
+                cameraAngleY -= e.movementY * 0.003;
+                cameraAngleY = Math.max(-0.6, Math.min(0.6, cameraAngleY));
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!game.active || !clock || !renderer || !camera || !playerObj) return;
+            const dt = clock.getDelta();
+
+            if (game.inCar) {
+                const v = game.inCar.userData;
+                if(keys['KeyW']) v.velocity += 80 * dt;
+                if(keys['KeyS']) v.velocity -= 40 * dt;
+                if(keys['Space']) v.velocity *= 0.7;
+                v.velocity *= 0.99;
+                
+                if(Math.abs(v.velocity) > 1) {
+                    const steer = v.velocity > 0 ? 2.2 : -2.2;
+                    if(keys['KeyA']) game.inCar.rotation.y += steer * dt;
+                    if(keys['KeyD']) game.inCar.rotation.y -= steer * dt;
+                }
+                game.inCar.translateZ(v.velocity * dt);
+                playerObj.position.copy(game.inCar.position);
+                document.getElementById('speedo').innerText = Math.round(Math.abs(v.velocity) * 2.2) + " MPH";
+            } else {
+                const speed = keys['ShiftLeft'] ? 30 : 15;
+                const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+                const side = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+                
+                if(keys['KeyW']) playerObj.position.add(dir.multiplyScalar(speed * dt));
+                if(keys['KeyS']) playerObj.position.add(dir.multiplyScalar(-speed * dt));
+                if(keys['KeyA']) playerObj.position.add(side.multiplyScalar(speed * dt));
+                if(keys['KeyD']) playerObj.position.add(side.multiplyScalar(-speed * dt));
+                
+                if(keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD']) {
+                    playerObj.rotation.y = cameraAngleX + Math.PI;
+                }
+            }
+
+            const dist = game.inCar ? 25 : 12;
+            camera.position.set(
+                playerObj.position.x + Math.sin(cameraAngleX) * dist,
+                playerObj.position.y + (game.inCar ? 10 : 6) + (cameraAngleY * 18),
+                playerObj.position.z + Math.cos(cameraAngleX) * dist
+            );
+            camera.lookAt(playerObj.position.x, playerObj.position.y + 1, playerObj.position.z);
+
+            updateMinimap();
+            renderer.render(scene, camera);
+        }
+
+        function updateMinimap() {
+            const canvas = document.getElementById('map-canvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            canvas.width = 180; canvas.height = 180;
+            ctx.fillStyle = '#111'; ctx.fillRect(0,0,180,180);
+            
+            const cx = 90, cy = 90, scale = 0.1;
+            if (playerObj) {
+                game.vehicles.forEach(v => {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(cx + (v.position.x - playerObj.position.x)*scale, cy + (v.position.z - playerObj.position.z)*scale, 4, 4);
+                });
+                ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
+            }
+        }
+
+        window.onload = init;
+        window.onresize = () => {
+            if (camera && renderer && camera.aspect !== undefined) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        };
+    </script>
+</body>
+</html>
