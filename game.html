@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GTA V 3D - GLB World</title>
+    <title>Grand City - 3D Sandbox</title>
     <!-- Core Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- GLTF/GLB Loader -->
@@ -16,43 +16,51 @@
         }
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .wanted-level { color: #ffca28; font-size: 36px; text-shadow: 2px 2px 4px #000; font-weight: bold; letter-spacing: 2px; }
-        .stats-box { background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #2ecc71; min-width: 180px; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
-        .health-bar { width: 100%; height: 8px; background: #444; margin-top: 5px; border-radius: 4px; overflow: hidden; }
+        .stats-box { background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #2ecc71; min-width: 200px; transform: skew(-5deg); }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 1.1rem; }
+        .health-bar { width: 100%; height: 10px; background: #333; margin-top: 5px; border-radius: 2px; overflow: hidden; border: 1px solid #000; }
         .health-fill { width: 100%; height: 100%; background: #2ecc71; transition: width 0.3s; }
         
         #mini-map {
-            position: absolute; bottom: 20px; left: 20px; width: 180px; height: 180px;
-            background: rgba(0,0,0,0.6); border: 4px solid #333; border-radius: 10px;
-            overflow: hidden; pointer-events: auto;
+            position: absolute; bottom: 25px; left: 25px; width: 180px; height: 180px;
+            background: rgba(0,0,0,0.7); border: 4px solid #444; border-radius: 4px;
+            overflow: hidden; pointer-events: auto; transform: skew(-2deg);
         }
         #map-canvas { width: 100%; height: 100%; }
         
         #instructions {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; text-align: center; background: rgba(0,0,0,0.95); padding: 40px; border-radius: 15px;
-            z-index: 100; border: 1px solid #444; pointer-events: auto;
+            color: white; text-align: center; background: rgba(0,0,0,0.95); padding: 40px; border-radius: 10px;
+            z-index: 100; border: 2px solid #2ecc71; pointer-events: auto; max-width: 400px;
         }
-        .speedometer { position: absolute; bottom: 20px; left: 220px; color: white; font-weight: bold; background: rgba(0,0,0,0.7); padding: 8px 20px; border-radius: 20px; font-size: 20px; }
+        .speedometer { position: absolute; bottom: 25px; left: 230px; color: white; font-weight: bold; background: rgba(0,0,0,0.8); padding: 10px 25px; border-radius: 4px; font-size: 24px; border-bottom: 4px solid #2ecc71; }
         
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; color: #2ecc71; display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 1000;
         }
+        .load-bar-container { width: 300px; height: 4px; background: #222; margin-top: 20px; }
+        .load-bar-fill { width: 0%; height: 100%; background: #2ecc71; transition: width 0.2s; }
+
+        .btn-start {
+            margin-top: 20px; padding: 15px 30px; background: #2ecc71; border: none; 
+            color: black; font-weight: bold; font-size: 1.2rem; cursor: pointer; text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
 
     <div id="loading-screen">
-        <h1>LOADING ASSETS...</h1>
-        <div id="load-status">Connecting to server...</div>
+        <h1 style="letter-spacing: 5px;">GRAND CITY</h1>
+        <div id="load-status">Connecting to assets...</div>
+        <div class="load-bar-container"><div id="load-bar" class="load-bar-fill"></div></div>
     </div>
 
     <div id="ui-layer">
         <div class="hud-top">
             <div class="stats-box">
-                <div class="stat-row">Michael <span style="color:#2ecc71">$4,500,201</span></div>
+                <div class="stat-row">MICHAEL <span style="color:#2ecc71">$4,500,201</span></div>
                 <div class="health-bar"><div class="health-fill"></div></div>
             </div>
             <div class="wanted-level">★★★★★</div>
@@ -62,147 +70,157 @@
     </div>
 
     <div id="instructions" style="display:none">
-        <h1 style="color: #2ecc71; margin-top:0;">WORLD LOADED</h1>
-        <p><b>WASD</b> Move | <b>Mouse</b> Look | <b>F</b> Enter/Exit Car</p>
-        <button style="padding: 10px 20px; background: #2ecc71; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;" onclick="startGame()">START GAME</button>
+        <h1 style="color: #2ecc71; margin-top:0;">CITY LOADED</h1>
+        <p><b>WASD</b> Walk/Drive<br><b>MOUSE</b> Look Around<br><b>F</b> Enter/Exit Vehicle</p>
+        <button class="btn-start" onclick="startGame()">Start Game</button>
     </div>
 
     <script>
-        /** * --- GLB ASSET CONFIG ---
-         * Replace these URLs with your hosted .glb files
-         */
+        // Use relative paths for your GitHub environment
         const MODELS = {
-            player: '/thing/player.glb',
-            car: '/thing/car.glb',
-            world: '/thing/map.glb' 
+            player: 'thing/player.glb',
+            car: 'thing/car.glb',
+            world: 'thing/map.glb' 
         };
 
         let scene, camera, renderer, clock, loader;
         let game = { active: false, inCar: null, vehicles: [], models: {} };
-        let playerObj;
+        let playerObj, playerVelocity = new THREE.Vector3();
+        let mapContext;
 
         async function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.outputEncoding = THREE.sRGBEncoding; // Important for GLB colors
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 100, 2000);
             
             loader = new THREE.GLTFLoader();
             clock = new THREE.Clock();
 
-            // Lighting (GLBs need good light to look right)
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
             const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-            sun.position.set(100, 200, 100);
+            sun.position.set(200, 500, 200);
+            sun.castShadow = true;
             scene.add(sun);
 
-            try {
-                document.getElementById('load-status').innerText = "Loading Character...";
-                game.models.player = (await loadGLB(MODELS.player)).scene;
-                
-                document.getElementById('load-status').innerText = "Loading Vehicle...";
-                game.models.car = (await loadGLB(MODELS.car)).scene;
+            mapContext = document.getElementById('map-canvas').getContext('2d');
 
-                document.getElementById('load-status').innerText = "Loading World Map...";
-                game.models.world = (await loadGLB(MODELS.world)).scene;
-                
-                finishLoading();
-            } catch (err) {
-                console.warn("Could not load some GLB files. Using fallback cubes.", err);
-                finishLoading();
+            try {
+                await loadGameAssets();
+            } catch (e) {
+                console.log("Loading error, showing fallbacks");
             }
 
-            createWorld();
-            setupPlayer();
-            spawnVehicles();
+            buildWorld();
+            createPlayer();
+            createTraffic();
+            
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('instructions').style.display = 'block';
             animate();
         }
 
-        function loadGLB(url) {
-            return new Promise((resolve, reject) => {
-                loader.load(url, resolve, undefined, reject);
-            });
+        async function loadGameAssets() {
+            const bar = document.getElementById('load-bar');
+            const status = document.getElementById('load-status');
+
+            const loadWithProgress = (url, name, progress) => {
+                return new Promise((res) => {
+                    status.innerText = `Loading ${name}...`;
+                    loader.load(url, 
+                        (gltf) => { bar.style.width = progress + '%'; res(gltf.scene); },
+                        undefined,
+                        () => { console.warn(`Asset ${name} missing.`); res(null); }
+                    );
+                });
+            };
+
+            game.models.player = await loadWithProgress(MODELS.player, 'Character', 33);
+            game.models.car = await loadWithProgress(MODELS.car, 'Vehicle', 66);
+            game.models.world = await loadWithProgress(MODELS.world, 'World Map', 100);
         }
 
-        function finishLoading() {
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('instructions').style.display = 'block';
-        }
-
-        function startGame() {
-            document.body.requestPointerLock();
-            game.active = true;
-            document.getElementById('instructions').style.display = 'none';
-        }
-
-        function createWorld() {
-            // Physics Floor
+        function buildWorld() {
             const ground = new THREE.Mesh(
-                new THREE.PlaneGeometry(5000, 5000),
+                new THREE.PlaneGeometry(10000, 10000),
                 new THREE.MeshStandardMaterial({ color: 0x333333 })
             );
             ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
             scene.add(ground);
 
             if (game.models.world) {
-                const map = game.models.world;
-                map.scale.set(100, 100, 100); // Scale up the world
-                scene.add(map);
+                scene.add(game.models.world);
+            } else {
+                // Procedural Blocky City Fallback
+                for(let i=0; i<60; i++) {
+                    const h = 20 + Math.random() * 80;
+                    const b = new THREE.Mesh(
+                        new THREE.BoxGeometry(30, h, 30),
+                        new THREE.MeshStandardMaterial({ color: 0x444444 })
+                    );
+                    b.position.set((Math.random()-0.5)*1200, h/2, (Math.random()-0.5)*1200);
+                    b.castShadow = true;
+                    scene.add(b);
+                }
             }
         }
 
-        function setupPlayer() {
+        function createPlayer() {
             playerObj = new THREE.Group();
             if (game.models.player) {
-                const model = game.models.player.clone();
-                model.scale.set(0.5, 0.5, 0.5);
-                playerObj.add(model);
+                playerObj.add(game.models.player);
             } else {
-                const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshStandardMaterial({color: 0x00ff00}));
-                cube.position.y = 1;
-                playerObj.add(cube);
+                const char = new THREE.Mesh(new THREE.CapsuleGeometry(1, 2, 4, 8), new THREE.MeshStandardMaterial({color: 0x2ecc71}));
+                char.position.y = 2;
+                playerObj.add(char);
             }
             scene.add(playerObj);
         }
 
-        function spawnVehicles() {
-            for(let i=0; i<15; i++) {
-                const vGroup = new THREE.Group();
+        function createTraffic() {
+            for(let i=0; i<12; i++) {
+                const v = new THREE.Group();
                 if (game.models.car) {
-                    const m = game.models.car.clone();
-                    m.scale.set(5, 5, 5);
-                    vGroup.add(m);
+                    v.add(game.models.car.clone());
+                } else {
+                    const box = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 10), new THREE.MeshStandardMaterial({color: 0x3498db}));
+                    box.position.y = 1.25;
+                    v.add(box);
                 }
-                vGroup.position.set((Math.random()-0.5)*400, 0, (Math.random()-0.5)*400);
-                vGroup.userData = { velocity: 0 };
-                scene.add(vGroup);
-                game.vehicles.push(vGroup);
+                v.position.set((Math.random()-0.5)*1000, 0, (Math.random()-0.5)*1000);
+                v.userData = { speed: 0 };
+                scene.add(v);
+                game.vehicles.push(v);
             }
         }
 
         const keys = {};
         document.addEventListener('keydown', e => {
             keys[e.code] = true;
-            if(e.code === 'KeyF') toggleVehicle();
+            if(e.code === 'KeyF') handleVehicleEntry();
         });
         document.addEventListener('keyup', e => keys[e.code] = false);
 
-        function toggleVehicle() {
+        function handleVehicleEntry() {
             if (game.inCar) {
                 playerObj.position.copy(game.inCar.position);
-                playerObj.position.x += 10;
+                playerObj.position.x += 8;
                 game.inCar = null;
                 playerObj.visible = true;
                 document.getElementById('speedo').style.display = 'none';
             } else {
-                let closest = null; let minDist = 20;
+                let closest = null, dist = 20;
                 game.vehicles.forEach(v => {
                     let d = playerObj.position.distanceTo(v.position);
-                    if(d < minDist) { minDist = d; closest = v; }
+                    if(d < dist) { dist = d; closest = v; }
                 });
                 if(closest) {
                     game.inCar = closest;
@@ -212,50 +230,91 @@
             }
         }
 
-        let camX = 0, camY = 0;
+        let yaw = 0, pitch = 0;
         document.addEventListener('mousemove', e => {
             if(document.pointerLockElement) {
-                camX -= e.movementX * 0.003;
-                camY -= e.movementY * 0.003;
-                camY = Math.max(-0.6, Math.min(0.6, camY));
+                yaw -= e.movementX * 0.002;
+                pitch -= e.movementY * 0.002;
+                pitch = Math.max(-0.5, Math.min(0.5, pitch));
             }
         });
+
+        function startGame() {
+            document.body.requestPointerLock();
+            game.active = true;
+            document.getElementById('instructions').style.display = 'none';
+        }
+
+        function updateHUD() {
+            mapContext.fillStyle = "#111";
+            mapContext.fillRect(0,0,300,300);
+            
+            const cx = 90, cy = 90;
+            // Draw Player Arrow
+            mapContext.save();
+            mapContext.translate(cx, cy);
+            mapContext.rotate(yaw);
+            mapContext.fillStyle = "#2ecc71";
+            mapContext.beginPath();
+            mapContext.moveTo(0, -8);
+            mapContext.lineTo(6, 6);
+            mapContext.lineTo(-6, 6);
+            mapContext.fill();
+            mapContext.restore();
+
+            // Draw Blips
+            game.vehicles.forEach(v => {
+                const dx = (v.position.x - playerObj.position.x) * 0.15;
+                const dz = (v.position.z - playerObj.position.z) * 0.15;
+                if(Math.abs(dx) < 80 && Math.abs(dz) < 80) {
+                    mapContext.fillStyle = "#e74c3c";
+                    mapContext.fillRect(cx + dx - 2, cy + dz - 2, 4, 4);
+                }
+            });
+        }
 
         function animate() {
             requestAnimationFrame(animate);
             if(!game.active) return;
-            const dt = clock.getDelta();
+            const delta = clock.getDelta();
 
             if (game.inCar) {
                 const v = game.inCar.userData;
-                if(keys['KeyW']) v.velocity += 100 * dt;
-                if(keys['KeyS']) v.velocity -= 50 * dt;
-                v.velocity *= 0.98;
-                if(keys['KeyA']) game.inCar.rotation.y += 2 * dt;
-                if(keys['KeyD']) game.inCar.rotation.y -= 2 * dt;
-                game.inCar.translateZ(v.velocity * dt);
+                if(keys['KeyW']) v.speed += 90 * delta;
+                if(keys['KeyS']) v.speed -= 40 * delta;
+                v.speed *= 0.98;
+                if(keys['KeyA'] && Math.abs(v.speed) > 2) game.inCar.rotation.y += 2.5 * delta * (v.speed > 0 ? 1 : -1);
+                if(keys['KeyD'] && Math.abs(v.speed) > 2) game.inCar.rotation.y -= 2.5 * delta * (v.speed > 0 ? 1 : -1);
+                game.inCar.translateZ(v.speed * delta);
                 playerObj.position.copy(game.inCar.position);
-                document.getElementById('speedo').innerText = Math.round(Math.abs(v.velocity)) + " MPH";
+                document.getElementById('speedo').innerText = Math.round(Math.abs(v.speed)) + " MPH";
             } else {
-                const speed = 25 * dt;
+                const walkSpeed = 22 * delta;
                 const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
                 const side = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
-                if(keys['KeyW']) playerObj.position.add(dir.multiplyScalar(speed));
-                if(keys['KeyS']) playerObj.position.add(dir.multiplyScalar(-speed));
-                if(keys['KeyA']) playerObj.position.add(side.multiplyScalar(speed));
-                if(keys['KeyD']) playerObj.position.add(side.multiplyScalar(-speed));
-                playerObj.rotation.y = camX + Math.PI;
+                if(keys['KeyW']) playerObj.position.add(dir.multiplyScalar(walkSpeed));
+                if(keys['KeyS']) playerObj.position.add(dir.multiplyScalar(-walkSpeed));
+                if(keys['KeyA']) playerObj.position.add(side.multiplyScalar(walkSpeed));
+                if(keys['KeyD']) playerObj.position.add(side.multiplyScalar(-walkSpeed));
+                playerObj.rotation.y = yaw + Math.PI;
             }
 
             camera.position.set(
-                playerObj.position.x + Math.sin(camX) * 20,
-                playerObj.position.y + 10 + (camY * 20),
-                playerObj.position.z + Math.cos(camX) * 20
+                playerObj.position.x + Math.sin(yaw) * 30,
+                playerObj.position.y + 15 + (pitch * 20),
+                playerObj.position.z + Math.cos(yaw) * 30
             );
-            camera.lookAt(playerObj.position.x, playerObj.position.y + 2, playerObj.position.z);
+            camera.lookAt(playerObj.position.x, playerObj.position.y + 5, playerObj.position.z);
 
+            updateHUD();
             renderer.render(scene, camera);
         }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
         window.onload = init;
     </script>
